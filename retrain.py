@@ -1,3 +1,7 @@
+#
+# This is simplified version of
+# https://github.com/tensorflow/tensorflow/blob/master/tensorflow/examples/image_retraining/retrain.py
+#
 import tensorflow as tf
 
 import utils
