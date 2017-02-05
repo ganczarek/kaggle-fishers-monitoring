@@ -151,7 +151,7 @@ def write_out_graph_and_labels(sess, graph, labels, final_tensor_name, output_di
 
 def main():
     # training parameters
-    training_steps = 4000
+    training_steps = 16000
     batch_size = 1000
     validation_batch_size = 100
     learning_rate = 0.01
