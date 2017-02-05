@@ -43,6 +43,24 @@ def get_random_cached_bottlenecks(sess, training_data, batch_size, category, inc
     return bottlenecks, ground_truths, file_names
 
 
+def get_all_bottlenecks(sess, training_data, category, inception_v3):
+    labels = list(training_data.keys())
+    bottlenecks = []
+    ground_truths = []
+    file_names = []
+    for label_index, label_name in enumerate(training_data.keys()):
+        label_data = training_data[label_name]
+        for image_name in label_data[category]:
+            bottleneck = inception_v3.get_or_create_bottleneck(sess, label_data['dir'], image_name)
+
+            ground_truth = np.zeros(len(labels), dtype=np.float32)
+            ground_truth[label_index] = 1.0
+            bottlenecks.append(bottleneck)
+            ground_truths.append(ground_truth)
+            file_names.append(os.path.join(label_data['dir'], image_name))
+    return bottlenecks, ground_truths, file_names
+
+
 def add_training_ops(class_count, inception_v3, learning_rate, final_tensor_name):
     with tf.name_scope('retrain_input'):
         # first dimension is a batch size
@@ -81,6 +99,39 @@ def add_training_ops(class_count, inception_v3, learning_rate, final_tensor_name
     return train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor
 
 
+def add_evaluation_step(result_tensor, ground_truth_tensor):
+    with tf.name_scope('accuracy'):
+        with tf.name_scope('correct_prediction'):
+            # argmax on axis 1 returns indexes of max values in rows (single prediction)
+            prediction = tf.argmax(result_tensor, 1)
+            correct_prediction = tf.equal(prediction, tf.argmax(ground_truth_tensor, 1))
+        with tf.name_scope('accuracy'):
+            evaluation_step = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    tf.summary.scalar('accuracy', evaluation_step)
+    return evaluation_step, prediction
+
+
+def evaluate_model_accuracy(sess, training_data, bottleneck_input, ground_truth_input, evaluation_step, prediction,
+                            inception_v3):
+    print('Evaluate accuracy of trained model on test data')
+    test_bottlenecks, test_ground_truth, test_file_names = (
+        get_all_bottlenecks(sess, training_data, 'testing', inception_v3)
+    )
+    test_accuracy, predictions = sess.run([evaluation_step, prediction],
+                                          feed_dict={bottleneck_input: test_bottlenecks,
+                                                     ground_truth_input: test_ground_truth})
+    print('Final test accuracy = %.1f%% (N=%d)' % (test_accuracy * 100, len(test_bottlenecks)))
+    print('Misclassified test images:')
+    class_labels = list(training_data.keys())
+    for i, test_filename in enumerate(test_file_names):
+        expected_class_index = test_ground_truth[i].argmax()
+        predicted_class_index = predictions[i]
+        if predictions[i] != expected_class_index:
+            predicted_class = class_labels[predicted_class_index]
+            expected_class = class_labels[expected_class_index]
+            print('%50s\t%8s != %8s' % (test_filename, predicted_class, expected_class))
+
+
 def write_out_graph_and_labels(sess, graph, labels, final_tensor_name, output_dir='./output'):
     utils.ensure_dir_exists(output_dir)
     print('Write output to', output_dir)
@@ -112,12 +163,13 @@ def main():
     train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor = (
         add_training_ops(len(training_data), inception_v3, learning_rate, final_tensor_name)
     )
+    evaluation_step, prediction = add_evaluation_step(final_tensor, ground_truth_input)
 
     # Merge all the summaries and write them out to summaries dir
     summaries_dir = utils.create_summaries_dir()
     merged = tf.summary.merge_all()
     train_writer = tf.summary.FileWriter(summaries_dir + '/train', inception_v3.graph)
-    print('run "tensorboard --logdir', summaries_dir, '" to visualize training process')
+    print('Run "tensorboard --logdir', summaries_dir, '" to visualize training process')
 
     with tf.Session() as sess:
         init = tf.global_variables_initializer()
@@ -133,6 +185,11 @@ def main():
                                         feed_dict={bottleneck_input: train_bottlenecks,
                                                    ground_truth_input: train_ground_truth})
             train_writer.add_summary(train_summary, i)
+            if i % 10 == 0:
+                print('Finished %d training steps' % i)
+
+        evaluate_model_accuracy(sess, training_data, bottleneck_input, ground_truth_input, evaluation_step, prediction,
+                                inception_v3)
 
         write_out_graph_and_labels(sess, inception_v3.graph, list(training_data.keys()), final_tensor_name)
 
