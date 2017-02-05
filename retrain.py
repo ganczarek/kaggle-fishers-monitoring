@@ -2,10 +2,12 @@
 # This is simplified version of
 # https://github.com/tensorflow/tensorflow/blob/master/tensorflow/examples/image_retraining/retrain.py
 #
+import os
 import random
 
 import numpy as np
 import tensorflow as tf
+from tensorflow.python.framework import graph_util
 
 import utils
 from inception_v3 import InceptionV3
@@ -41,7 +43,7 @@ def get_random_cached_bottlenecks(sess, training_data, batch_size, category, inc
     return bottlenecks, ground_truths, file_names
 
 
-def add_training_ops(class_count, inception_v3, learning_rate, final_tensor_name='retrained_result'):
+def add_training_ops(class_count, inception_v3, learning_rate, final_tensor_name):
     with tf.name_scope('retrain_input'):
         # first dimension is a batch size
         bottleneck_input = tf.placeholder_with_default(inception_v3.bottleneck_tensor,
@@ -79,11 +81,27 @@ def add_training_ops(class_count, inception_v3, learning_rate, final_tensor_name
     return train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor
 
 
+def write_out_graph_and_labels(sess, graph, labels, final_tensor_name, output_dir='./output'):
+    utils.ensure_dir_exists(output_dir)
+
+    # write out trained weights
+    output_graph_def = graph_util.convert_variables_to_constants(sess, graph.as_graph_def(), [final_tensor_name])
+    output_graph_file_name = os.path.join(output_dir, 'output_graph.pb')
+    with tf.gfile.FastGFile(output_graph_file_name, 'wb') as f:
+        f.write(output_graph_def.SerializeToString())
+
+    # write out labels
+    output_labels_file_name = os.path.join(output_dir, 'labels.txt')
+    with tf.gfile.FastGFile(output_labels_file_name, 'w') as f:
+        f.write('\n'.join(labels) + '\n')
+
+
 def main():
     # training parameters
     training_steps = 4000
     batch_size = 1000
     learning_rate = 0.01
+    final_tensor_name = 'retrained_result'
 
     # import Inception-v3 model
     inception_v3 = InceptionV3()
@@ -91,7 +109,7 @@ def main():
     cache_bottlenecks(training_data, inception_v3)
 
     train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor = (
-        add_training_ops(len(training_data), inception_v3, learning_rate)
+        add_training_ops(len(training_data), inception_v3, learning_rate, final_tensor_name)
     )
 
     # Merge all the summaries and write them out to summaries dir
@@ -113,6 +131,8 @@ def main():
                                         feed_dict={bottleneck_input: train_bottlenecks,
                                                    ground_truth_input: train_ground_truth})
             train_writer.add_summary(train_summary, i)
+
+        write_out_graph_and_labels(sess, inception_v3.graph, list(training_data.keys()), final_tensor_name)
 
 
 if __name__ == '__main__':
