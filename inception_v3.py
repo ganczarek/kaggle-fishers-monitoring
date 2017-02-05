@@ -14,8 +14,8 @@ class InceptionV3:
     bottleneck_tensor_name = 'pool_3/_reshape:0'
     jpeg_data_tensor_name = 'DecodeJpeg/contents:0'
     resized_input_tensor_name = 'ResizeBilinear:0'
+    bottleneck_tensor_size = 2048
 
-    BOTTLENECK_TENSOR_SIZE = 2048
     MODEL_INPUT_WIDTH = 299
     MODEL_INPUT_HEIGHT = 299
     MODEL_INPUT_DEPTH = 3
