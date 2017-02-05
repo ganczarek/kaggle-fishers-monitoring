@@ -4,6 +4,7 @@
 #
 import os
 import random
+from datetime import datetime
 
 import numpy as np
 import tensorflow as tf
@@ -152,6 +153,7 @@ def main():
     # training parameters
     training_steps = 4000
     batch_size = 1000
+    validation_batch_size = 100
     learning_rate = 0.01
     final_tensor_name = 'retrained_result'
 
@@ -169,6 +171,7 @@ def main():
     summaries_dir = utils.create_summaries_dir()
     merged = tf.summary.merge_all()
     train_writer = tf.summary.FileWriter(summaries_dir + '/train', inception_v3.graph)
+    validation_writer = tf.summary.FileWriter(summaries_dir + '/validation')
     print('Run "tensorboard --logdir', summaries_dir, '" to visualize training process')
 
     with tf.Session() as sess:
@@ -185,8 +188,24 @@ def main():
                                         feed_dict={bottleneck_input: train_bottlenecks,
                                                    ground_truth_input: train_ground_truth})
             train_writer.add_summary(train_summary, i)
-            if i % 10 == 0:
-                print('Finished %d training steps' % i)
+
+            # Validate model performance
+            if (i % 10 == 0) or (i == training_steps + 1):
+                train_accuracy, cross_entropy_value = sess.run([evaluation_step, cross_entropy_mean],
+                                                               feed_dict={bottleneck_input: train_bottlenecks,
+                                                                          ground_truth_input: train_ground_truth})
+                print('%s: Step %d: Train accuracy = %.1f%%' % (datetime.now(), i, train_accuracy * 100))
+                print('%s: Step %d: Cross entropy = %f' % (datetime.now(), i, cross_entropy_value))
+                validation_bottlenecks, validation_ground_truth, _ = (get_random_cached_bottlenecks(
+                    sess, training_data, validation_batch_size, 'validation', inception_v3)
+                )
+                validation_summary, validation_accuracy = sess.run([merged, evaluation_step],
+                                                                   feed_dict={bottleneck_input: validation_bottlenecks,
+                                                                              ground_truth_input: validation_ground_truth})
+                validation_writer.add_summary(validation_summary, i)
+                print('%s: Step %d: Validation accuracy = %.1f%% (N=%d)' % (datetime.now(), i,
+                                                                            validation_accuracy * 100,
+                                                                            len(validation_bottlenecks)))
 
         evaluate_model_accuracy(sess, training_data, bottleneck_input, ground_truth_input, evaluation_step, prediction,
                                 inception_v3)
