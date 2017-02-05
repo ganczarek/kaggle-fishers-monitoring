@@ -13,7 +13,7 @@ def ensure_dir_exists(directory):
         tf.gfile.MakeDirs(directory)
 
 
-def ensure_dir_empty(directory):
+def delete_dir_content(directory):
     if tf.gfile.Exists(directory):
         print("Deleting", directory)
         tf.gfile.DeleteRecursively(directory)
@@ -21,7 +21,7 @@ def ensure_dir_empty(directory):
 
 def create_summaries_dir(summaries_directory='/tmp/kaggle_fishers_monitoring_retrain_logs'):
     ensure_dir_exists(summaries_directory)
-    ensure_dir_empty(summaries_directory)
+    delete_dir_content(summaries_directory)
     return summaries_directory
 
 

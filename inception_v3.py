@@ -16,12 +16,7 @@ class InceptionV3:
     resized_input_tensor_name = 'ResizeBilinear:0'
     bottleneck_tensor_size = 2048
 
-    MODEL_INPUT_WIDTH = 299
-    MODEL_INPUT_HEIGHT = 299
-    MODEL_INPUT_DEPTH = 3
-    MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
-
-    def __init__(self, model_dir='./data/inception-v3'):
+    def __init__(self, model_dir='./data'):
         self.model_dir = model_dir
         self.__maybe_get_inception_v3_model()
         self.graph, self.bottleneck_tensor, self.jpeg_data_tensor, self.resized_input_tensor = self.__create_graph()
@@ -35,11 +30,11 @@ class InceptionV3:
             file_path, _ = urllib.request.urlretrieve(self.data_url, file_path)
             stat_info = os.stat(file_path)
             print('Successfully downloaded', filename, stat_info.st_size, 'bytes.')
-        tarfile.open(file_path, 'r:gz').extractall(self.model_dir)
+        tarfile.open(file_path, 'r:gz').extractall(os.path.join(self.model_dir, 'inception-v3'))
 
     def __create_graph(self):
         with tf.Session() as sess:
-            model_filename = os.path.join(self.model_dir, self.graph_def_file_name)
+            model_filename = os.path.join(self.model_dir, 'inception-v3', self.graph_def_file_name)
             with tf.gfile.FastGFile(model_filename, 'rb') as f:
                 graph_def = tf.GraphDef()
                 graph_def.ParseFromString(f.read())
