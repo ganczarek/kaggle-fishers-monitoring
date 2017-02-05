@@ -83,6 +83,7 @@ def add_training_ops(class_count, inception_v3, learning_rate, final_tensor_name
 
 def write_out_graph_and_labels(sess, graph, labels, final_tensor_name, output_dir='./output'):
     utils.ensure_dir_exists(output_dir)
+    print('Write output to', output_dir)
 
     # write out trained weights
     output_graph_def = graph_util.convert_variables_to_constants(sess, graph.as_graph_def(), [final_tensor_name])
@@ -116,12 +117,13 @@ def main():
     summaries_dir = utils.create_summaries_dir()
     merged = tf.summary.merge_all()
     train_writer = tf.summary.FileWriter(summaries_dir + '/train', inception_v3.graph)
+    print('run "tensorboard --logdir', summaries_dir, '" to visualize training process')
 
     with tf.Session() as sess:
         init = tf.global_variables_initializer()
         sess.run(init)
 
-        # start training
+        print('Start training')
         for i in range(training_steps):
             train_bottlenecks, train_ground_truth, _ = get_random_cached_bottlenecks(
                 sess, training_data, batch_size, 'training', inception_v3)
